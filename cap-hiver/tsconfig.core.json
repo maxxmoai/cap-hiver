@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "plugins": [], "paths": {}, "types": ["node"], "incremental": false },
+  "include": ["src/engine", "src/lib", "src/server", "tests", "scripts"],
+  "exclude": ["node_modules", "src/server/pg-store.ts", "src/server/runtime.ts", "scripts/migrate.ts"]
+}
