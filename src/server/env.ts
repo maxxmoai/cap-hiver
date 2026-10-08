@@ -6,6 +6,10 @@ export interface Env {
   cronSecret: string | null;
   anthropicKey: string | null;
   anthropicModel: string;
+  geminiKey: string | null;
+  geminiModel: string;
+  /** Fournisseur du coach : COACH_PROVIDER, sinon Gemini si sa clé existe, sinon Anthropic. */
+  coachProvider: 'gemini' | 'anthropic' | null;
   stravaId: string | null;
   stravaSecret: string | null;
   stravaVerify: string | null;
@@ -14,6 +18,12 @@ export interface Env {
 }
 
 const opt = (k: string): string | null => process.env[k]?.trim() || null;
+
+export function pickProvider(wanted: string | null, hasGemini: boolean, hasAnthropic: boolean): 'gemini' | 'anthropic' | null {
+  if (wanted === 'gemini' && hasGemini) return 'gemini';
+  if (wanted === 'anthropic' && hasAnthropic) return 'anthropic';
+  return hasGemini ? 'gemini' : hasAnthropic ? 'anthropic' : null;
+}
 
 export function env(): Env {
   const production = process.env['NODE_ENV'] === 'production';
@@ -27,6 +37,9 @@ export function env(): Env {
     cronSecret: opt('CRON_SECRET'),
     anthropicKey: opt('ANTHROPIC_API_KEY'),
     anthropicModel: opt('ANTHROPIC_MODEL') ?? 'claude-sonnet-5-5',
+    geminiKey: opt('GEMINI_API_KEY'),
+    geminiModel: opt('GEMINI_MODEL') ?? 'gemini-flash-latest',
+    coachProvider: pickProvider(opt('COACH_PROVIDER'), !!opt('GEMINI_API_KEY'), !!opt('ANTHROPIC_API_KEY')),
     stravaId: opt('STRAVA_CLIENT_ID'),
     stravaSecret: opt('STRAVA_CLIENT_SECRET'),
     stravaVerify: opt('STRAVA_VERIFY_TOKEN'),

@@ -2,7 +2,7 @@ import { safeEqual } from '../../../../lib/crypto.ts';
 import { env } from '../../../../server/env.ts';
 import { mutate } from '../../../../server/mutate.ts';
 import { runDaily } from '../../../../server/service.ts';
-import { deps, fail, getStore, json } from '../../../../server/runtime.ts';
+import { deps, fail, getStore, intervalsKeyOf, json } from '../../../../server/runtime.ts';
 
 export const maxDuration = 60;
 
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   let ok = 0;
   let failed = 0;
   for (const id of await store.listUserIds()) {
-    try { await mutate(store, id, d, (cur) => runDaily(cur, d)); ok++; } catch { failed++; }
+    try { await mutate(store, id, d, (cur) => runDaily(cur, d, { intervalsKey: intervalsKeyOf(cur) })); ok++; } catch { failed++; }
   }
   return json({ ok, failed });
 }

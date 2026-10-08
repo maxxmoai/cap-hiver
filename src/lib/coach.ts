@@ -153,10 +153,14 @@ export function applyCoachChange(sessions: readonly Session[], c: CoachChange, n
   return [...sessions.map((s) => ({ ...s })), added].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
-export interface CoachDeps { fetch: typeof fetch; apiKey: string; model: string }
+export type CoachProvider = 'anthropic' | 'gemini';
+export interface CoachDeps { fetch: typeof fetch; apiKey: string; model: string; provider?: CoachProvider }
 
-/** Appel à l'API Messages avec un outil imposé : la réponse arrive déjà structurée. */
-export async function askCoach(ctx: Record<string, unknown>, userText: string, d: CoachDeps): Promise<unknown> {
+const userPrompt = (ctx: Record<string, unknown>, userText: string): string =>
+  `Données (JSON) :\n${JSON.stringify(ctx)}\n\nDemande de l’utilisateur : ${userText.slice(0, 1000) || 'Analyse ma situation et ajuste le plan si nécessaire.'}`;
+
+/** Appel à l'API Messages d'Anthropic avec un outil imposé : la réponse arrive déjà structurée. */
+async function askAnthropic(ctx: Record<string, unknown>, userText: string, d: CoachDeps): Promise<unknown> {
   const res = await d.fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': d.apiKey, 'anthropic-version': '2023-06-01' },
@@ -166,7 +170,7 @@ export async function askCoach(ctx: Record<string, unknown>, userText: string, d
       system: COACH_SYSTEM,
       tools: [COACH_TOOL],
       tool_choice: { type: 'tool', name: COACH_TOOL.name },
-      messages: [{ role: 'user', content: `Données (JSON) :\n${JSON.stringify(ctx)}\n\nDemande de l’utilisateur : ${userText.slice(0, 1000) || 'Analyse ma situation et ajuste le plan si nécessaire.'}` }],
+      messages: [{ role: 'user', content: userPrompt(ctx, userText) }],
     }),
     signal: AbortSignal.timeout(55_000),
   });
@@ -176,3 +180,28 @@ export async function askCoach(ctx: Record<string, unknown>, userText: string, d
   if (!block) throw new Error('Réponse du coach inattendue.');
   return block.input;
 }
+
+/** Même contrat via l'API Gemini : appel de fonction imposé, clé dans l'en-tête (jamais dans l'URL). */
+async function askGemini(ctx: Record<string, unknown>, userText: string, d: CoachDeps): Promise<unknown> {
+  const model = encodeURIComponent(d.model.replace(/^models\//, ''));
+  const res = await d.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': d.apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: COACH_SYSTEM }] },
+      contents: [{ role: 'user', parts: [{ text: userPrompt(ctx, userText) }] }],
+      tools: [{ functionDeclarations: [{ name: COACH_TOOL.name, description: COACH_TOOL.description, parameters: COACH_TOOL.input_schema }] }],
+      toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [COACH_TOOL.name] } },
+      generationConfig: { maxOutputTokens: 2048, temperature: 0.4 },
+    }),
+    signal: AbortSignal.timeout(55_000),
+  });
+  if (!res.ok) throw new Error(`Le coach n’a pas pu répondre (${res.status}).`);
+  const body = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { name?: string; args?: unknown } }> } }> };
+  const call = body.candidates?.[0]?.content?.parts?.find((p) => p.functionCall?.name === COACH_TOOL.name)?.functionCall;
+  if (!call) throw new Error('Réponse du coach inattendue.');
+  return call.args;
+}
+
+export const askCoach = (ctx: Record<string, unknown>, userText: string, d: CoachDeps): Promise<unknown> =>
+  (d.provider === 'gemini' ? askGemini : askAnthropic)(ctx, userText, d);

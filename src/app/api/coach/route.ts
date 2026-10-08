@@ -12,7 +12,8 @@ export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return fail('Non connecté.', 401);
   const e = env();
-  if (!e.anthropicKey) return fail('Le coach n’est pas configuré sur ce serveur (ANTHROPIC_API_KEY).', 503);
+  const apiKey = e.coachProvider === 'gemini' ? e.geminiKey : e.anthropicKey;
+  if (!e.coachProvider || !apiKey) return fail('Le coach n’est pas configuré sur ce serveur (GEMINI_API_KEY ou ANTHROPIC_API_KEY).', 503);
   const b = (await req.json().catch(() => null)) as { text?: unknown } | null;
   const text = typeof b?.text === 'string' ? b.text.slice(0, 1000) : '';
   const d = deps();
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   let reply;
   try {
     const ctx = buildCoachContext({ today, settings: data.settings, events: data.events, sessions: data.sessions, form: data.form, busy: data.busy });
-    reply = parseCoachReply(await askCoach(ctx, text, { fetch: d.fetch, apiKey: e.anthropicKey, model: e.anthropicModel }), data.sessions, today);
+    reply = parseCoachReply(await askCoach(ctx, text, { fetch: d.fetch, apiKey, provider: e.coachProvider, model: e.coachProvider === 'gemini' ? e.geminiModel : e.anthropicModel }), data.sessions, today);
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Le coach est indisponible.', 502);
   }

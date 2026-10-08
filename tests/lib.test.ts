@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { askCoach, buildCoachContext, COACH_TOOL, parseCoachReply, applyCoachChange } from '../src/lib/coach.ts';
+import { pickProvider } from '../src/server/env.ts';
 import { decrypt, encrypt, hashPassword, signSession, signState, verifyPassword, verifySession, verifyState } from '../src/lib/crypto.ts';
 import { busyFromEvents, fetchIcs, parseIcs, safeIcsUrl, zonedToInstant } from '../src/lib/ics.ts';
 import { forecastUrl, parseForecast, parseGeocode } from '../src/lib/openmeteo.ts';
@@ -238,5 +239,26 @@ describe('coach', () => {
     assert.ok(sent.messages?.[0]?.content.includes('Analyse ma semaine'));
     const bad = (async () => new Response('{}', { status: 529 })) as typeof fetch;
     await assert.rejects(askCoach(ctx, '', { fetch: bad, apiKey: 'k', model: 'm' }), /529/);
+  });
+
+  it('parle à Gemini avec la clé en en-tête et un appel de fonction imposé', async () => {
+    const ctx = buildCoachContext({ today: '2026-10-07', settings: settings(), events: [], sessions: [], form: {}, busy: {} });
+    let url = ''; let headers: Record<string, string> = {}; let sent: Record<string, any> = {};
+    const f = (async (u: string, init?: RequestInit) => {
+      url = u; headers = init?.headers as Record<string, string>; sent = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ functionCall: { name: COACH_TOOL.name, args: { message: 'ok', changes: [] } } }] } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const out = await askCoach(ctx, 'Analyse', { fetch: f, apiKey: 'SECRET', model: 'models/gemini-flash-latest', provider: 'gemini' });
+    assert.deepEqual(out, { message: 'ok', changes: [] });
+    assert.match(url, /v1beta\/models\/gemini-flash-latest:generateContent$/);
+    assert.ok(!url.includes('SECRET'));
+    assert.equal(headers['x-goog-api-key'], 'SECRET');
+    assert.equal(sent['toolConfig'].functionCallingConfig.mode, 'ANY');
+    const none = (async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'bla' }] } }] }), { status: 200 })) as unknown as typeof fetch;
+    await assert.rejects(askCoach(ctx, '', { fetch: none, apiKey: 'k', model: 'm', provider: 'gemini' }), /inattendue/);
+    assert.equal(pickProvider(null, true, true), 'gemini');
+    assert.equal(pickProvider('anthropic', true, true), 'anthropic');
+    assert.equal(pickProvider('gemini', false, true), 'anthropic');
+    assert.equal(pickProvider(null, false, false), null);
   });
 });

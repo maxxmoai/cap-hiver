@@ -5,7 +5,8 @@ import type { IdGen, Kind, Session, Sport } from '../engine/types.ts';
 
 /** Sous-ensemble d'une activité Strava (API v3). */
 export interface StravaActivity {
-  id: number;
+  /** Nombre pour Strava, « icu:… » pour intervals.icu. */
+  id: number | string;
   name: string;
   sport_type: string;
   start_date_local: string;
@@ -16,6 +17,8 @@ export interface StravaActivity {
   weighted_average_watts?: number;
   average_watts?: number;
   total_elevation_gain?: number;
+  /** Charge déjà calculée par la source (intervals.icu) : elle prime sur notre estimation. */
+  external_tss?: number;
 }
 
 export function mapSport(t: string): Sport {
@@ -84,12 +87,13 @@ export function ingestActivity(sessions: readonly Session[], a: StravaActivity, 
       .sort((x, y) => x.score - y.score)[0]?.s;
 
   const rpeHint = target?.rpe ?? RPE0[dur >= 120 ? 'long' : 'easy'];
-  const load = activityLoad({ durSec: a.moving_time, sport, avgHr: a.average_heartrate ?? null, normPower: np, rpeHint }, ath);
+  const load0 = activityLoad({ durSec: a.moving_time, sport, avgHr: a.average_heartrate ?? null, normPower: np, rpeHint }, ath);
+  const load = a.external_tss !== undefined ? { ...load0, tss: a.external_tss, method: 'power' as const } : load0;
   const plannedTss = existing ? null : target ? estimateTss(target.dur, target.rpe, target.sport) : null;
   const done = {
     dur, dist: a.distance ? Math.round(a.distance / 100) / 10 : null, rpe: load.rpe,
     feel: target?.done?.feel ?? 3, legs: target?.done?.legs ?? 3, note: target?.done?.note ?? '',
-    tss: Math.round(load.tss), source: 'strava' as const, stravaId,
+    tss: Math.round(load.tss), source: typeof a.id === 'string' && a.id.startsWith('icu:') ? ('intervals' as const) : ('strava' as const), stravaId,
   };
 
   if (target) {

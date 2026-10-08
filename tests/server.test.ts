@@ -4,9 +4,10 @@ import { parseAction } from '../src/server/actions.ts';
 import { MemoryStore } from '../src/server/memory-store.ts';
 import { mutate } from '../src/server/mutate.ts';
 import { sanitizeUserData } from '../src/server/sanitize.ts';
-import { applyStravaActivity, applyUserAction, emptyUserData, refreshAlerts, syncCalendar, withDateRange, type Deps } from '../src/server/service.ts';
+import { syncIntervals, applyStravaActivity, applyUserAction, emptyUserData, refreshAlerts, syncCalendar, withDateRange, type Deps } from '../src/server/service.ts';
 import type { UserData } from '../src/server/types.ts';
 import { parseActivity } from '../src/lib/strava.ts';
+import { parseIntervalsActivity, validKey } from '../src/lib/intervals.ts';
 import { counter } from './helpers.ts';
 
 const NOW = new Date('2026-10-07T09:00:00Z');
@@ -146,5 +147,43 @@ describe('mutate', () => {
     assert.equal(calls, 2);
     assert.deepEqual(out.stravaSeen, ['1']);
     assert.equal(out.form['2026-10-07']?.leg, 2);
+  });
+});
+
+describe('intervals.icu', () => {
+  const raw = (over: Record<string, unknown> = {}) => ({ id: 'i555', type: 'Run', name: 'Footing', start_date_local: '2026-10-08T18:00:00', moving_time: 9000, distance: 22000, average_heartrate: 160, icu_training_load: 130, ...over });
+  it('convertit une activité et préfixe l’identifiant', () => {
+    const a = parseIntervalsActivity(raw())!;
+    assert.equal(a.id, 'icu:i555');
+    assert.equal(a.external_tss, 130);
+    assert.equal(parseIntervalsActivity(raw({ moving_time: 10 })), null);
+    assert.equal(parseIntervalsActivity({ id: 'i1', _note: 'limité' }), null);
+    assert.ok(validKey('abcDEF1234567890') && !validKey('a b'));
+  });
+  it('importe, utilise la charge fournie et ne duplique pas', async () => {
+    const calls: Array<{ url: string; auth: string }> = [];
+    const f = (async (u: string, init?: RequestInit) => {
+      calls.push({ url: String(u), auth: (init?.headers as Record<string, string>)['authorization'] ?? '' });
+      return new Response(JSON.stringify([raw(), { id: 'i9', _note: 'x' }]), { status: 200 });
+    }) as unknown as typeof fetch;
+    const deps = mkDeps(f);
+    let d = emptyUserData(deps);
+    d = applyUserAction(d, { type: 'saveSession', date: '2026-10-08', sport: 'run', kind: 'easy', dur: 60, with: [] }, deps);
+    d = await syncIntervals(d, 'abcDEF1234567890', deps);
+    assert.match(calls[0]!.url, /intervals\.icu\/api\/v1\/athlete\/0\/activities\?oldest=2026-09-23&newest=2026-10-07/);
+    assert.match(calls[0]!.auth, /^Basic /);
+    assert.equal(d.intervals.lastError, null);
+    const done = d.sessions.filter((s) => s.done?.source === 'intervals');
+    assert.equal(done.length, 1);
+    assert.equal(done[0]!.done?.tss, 130);
+    d = await syncIntervals(d, 'abcDEF1234567890', deps);
+    assert.equal(d.sessions.filter((s) => s.done?.source === 'intervals').length, 1);
+  });
+  it('une clé refusée est notée sans toucher au plan', async () => {
+    const deps = mkDeps((async () => new Response('', { status: 401 })) as unknown as typeof fetch);
+    const d = emptyUserData(deps);
+    const out = await syncIntervals(d, 'abcDEF1234567890', deps);
+    assert.match(out.intervals.lastError ?? '', /refusée/);
+    assert.equal(out.sessions.length, d.sessions.length);
   });
 });

@@ -66,7 +66,7 @@ function sanitizeSession(raw: unknown, newId: IdGen): Session | null {
     s.done = {
       dur: Math.round(num(d['dur'], s.dur, 1, 900)), dist: optNum(d['dist'], 0, 1000), rpe: Math.round(num(d['rpe'], s.rpe, 1, 10)),
       feel: Math.round(num(d['feel'], 3, 1, 5)), legs: Math.round(num(d['legs'], 3, 1, 5)), note: text(d['note'], 300),
-      source: d['source'] === 'strava' ? 'strava' : 'manual',
+      source: d['source'] === 'strava' ? 'strava' : d['source'] === 'intervals' ? 'intervals' : 'manual',
       ...(optNum(d['tss'], 0, 1000) !== null && { tss: optNum(d['tss'], 0, 1000)! }),
       ...(typeof d['stravaId'] === 'string' && { stravaId: d['stravaId'].slice(0, 30) }),
     };
@@ -148,6 +148,7 @@ export function sanitizeUserData(raw: unknown, newId: IdGen, today: string): Use
   const wx = isObj(r['weather']) ? r['weather'] : {};
   const co = isObj(r['coach']) ? r['coach'] : {};
   const st = isObj(r['strava']) ? r['strava'] : {};
+  const iv = isObj(r['intervals']) ? r['intervals'] : {};
   return {
     v: 2,
     settings: sanitizeSettings(r['settings']),
@@ -170,5 +171,12 @@ export function sanitizeUserData(raw: unknown, newId: IdGen, today: string): Use
     },
     stravaSeen: words(r['stravaSeen'], 200, 40),
     strava: { connected: st['connected'] === true, lastSyncAt: typeof st['lastSyncAt'] === 'string' ? st['lastSyncAt'] : null },
+    intervals: {
+      connected: iv['connected'] === true && typeof iv['keyEnc'] === 'string',
+      keyEnc: typeof iv['keyEnc'] === 'string' ? iv['keyEnc'].slice(0, 400) : null,
+      athlete: text(iv['athlete'], 60),
+      lastSyncAt: typeof iv['lastSyncAt'] === 'string' ? iv['lastSyncAt'] : null,
+      lastError: typeof iv['lastError'] === 'string' ? iv['lastError'].slice(0, 200) : null,
+    },
   };
 }

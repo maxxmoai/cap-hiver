@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { DAY_LONG } from '../engine/dates.ts';
 import type { Settings } from '../engine/types.ts';
-import { searchPlaces, stravaDisconnect } from './api.ts';
+import { intervalsConnect, intervalsDisconnect, searchPlaces, stravaDisconnect } from './api.ts';
 import { useApp } from './store.tsx';
 import { Field } from './ui.tsx';
 
@@ -15,6 +15,7 @@ export function Reglages() {
   const [city, setCity] = useState(s.city);
   const [places, setPlaces] = useState<Awaited<ReturnType<typeof searchPlaces>>['places']>([]);
   const [url, setUrl] = useState(data.calendar.url ?? '');
+  const [icuKey, setIcuKey] = useState('');
 
   const save = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -92,9 +93,30 @@ export function Reglages() {
           <Field label="FTP vélo (W)"><input name="ftp" type="number" min="80" max="600" defaultValue={s.ftp ?? ''} /></Field>
           <Field label="FC seuil (bpm)"><input name="lthr" type="number" min="120" max="220" defaultValue={s.lthr ?? ''} /></Field>
         </div>
-        <p className="small mute">FTP et FC seuil rendent la charge Strava plus précise ; sans eux, elle est estimée à partir de la durée et de l’effort.</p>
+        <p className="small mute">FTP et FC seuil rendent la charge importée plus précise ; sans eux, elle est estimée à partir de la durée et de l’effort.</p>
         <button className="btn pri block">Enregistrer</button>
       </form>
+
+      <h2 className="sec">intervals.icu</h2>
+      <section className="card">
+        {!integrations.intervals ? <p className="small mute">Non configuré sur ce serveur (TOKEN_ENCRYPTION_KEY manquante).</p> : data.intervals.connected ? (
+          <>
+            <p>Connecté{data.intervals.athlete ? ` : ${data.intervals.athlete}` : ''}. Tes sorties (Garmin, Strava ou fichiers déposés sur intervals.icu) sont importées chaque jour et à l’ouverture de l’appli, puis comparées au plan.</p>
+            {data.intervals.lastError && <p className="err" role="alert">{data.intervals.lastError}</p>}
+            {data.intervals.lastSyncAt && <p className="small mute">Dernière synchro : {new Date(data.intervals.lastSyncAt).toLocaleString('fr-FR')}</p>}
+            <div className="acts">
+              <button className="btn" onClick={() => void sync()}>Synchroniser maintenant</button>
+              <button className="btn danger" onClick={() => void intervalsDisconnect().then((r) => { setData(r.data); toast('intervals.icu déconnecté.'); }).catch(() => toast('Échec.'))}>Déconnecter</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="small mute">Sur intervals.icu : Réglages → Développeur → « Clé API ». Colle-la ici ; elle est chiffrée sur le serveur et ne revient jamais au navigateur. Si ta montre est reliée à intervals.icu, chaque sortie arrive avec sa charge d’entraînement, et les trois jours suivants sont allégés si elle était bien plus dure que prévu.</p>
+            <Field label="Clé API intervals.icu"><input type="password" value={icuKey} onChange={(e) => setIcuKey(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
+            <button className="btn pri" disabled={!icuKey.trim()} onClick={() => void intervalsConnect(icuKey.trim()).then((r) => { setData(r.data); setIcuKey(''); toast('intervals.icu connecté.'); }).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Échec.'))}>Connecter</button>
+          </>
+        )}
+      </section>
 
       <h2 className="sec">Strava</h2>
       <section className="card">

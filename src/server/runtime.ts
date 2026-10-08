@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { signSession, verifySession } from '../lib/crypto.ts';
+import { decrypt, signSession, verifySession } from '../lib/crypto.ts';
 import { env } from './env.ts';
 import { MemoryStore } from './memory-store.ts';
 import { PgStore } from './pg-store.ts';
 import type { Deps } from './service.ts';
-import type { Store, User } from './types.ts';
+import type { Store, User, UserData } from './types.ts';
 
 const g = globalThis as unknown as { __store?: Store };
 
@@ -45,6 +45,15 @@ export async function sameOrigin(): Promise<boolean> {
   const host = h.get('x-forwarded-host') ?? h.get('host');
   if (!origin) return h.get('sec-fetch-site') !== 'cross-site';
   try { return new URL(origin).host === host; } catch { return false; }
+}
+
+/** Données renvoyées au navigateur : la clé chiffrée intervals.icu reste sur le serveur. */
+export const publicData = (d: UserData): UserData => ({ ...d, intervals: { ...d.intervals, keyEnc: null } });
+
+export function intervalsKeyOf(d: UserData): string | null {
+  const e = env();
+  if (!d.intervals.keyEnc || !e.tokenKey) return null;
+  try { return decrypt(d.intervals.keyEnc, e.tokenKey); } catch { return null; }
 }
 
 export const json = (body: unknown, status = 200): NextResponse => NextResponse.json(body, { status, headers: { 'cache-control': 'no-store' } });

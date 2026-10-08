@@ -1,7 +1,7 @@
 import type { Action } from '../server/actions.ts';
 import type { User, UserData } from '../server/types.ts';
 
-export interface StatePayload { user: User; data: UserData; today: string; integrations: { coach: boolean; strava: boolean } }
+export interface StatePayload { user: User; data: UserData; today: string; integrations: { coach: boolean; strava: boolean; intervals: boolean } }
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) { super(message); this.status = status; }
@@ -23,3 +23,5 @@ export const auth = (kind: 'login' | 'signup' | 'logout', body?: Record<string, 
 export const askCoach = (text: string): Promise<{ reply: { message: string; changes: import('../lib/coach.ts').CoachChange[] } }> => request('/api/coach', { method: 'POST', body: JSON.stringify({ text }) });
 export const searchPlaces = (q: string): Promise<{ places: Array<{ name: string; region: string; country: string; lat: number; lon: number; tz: string }> }> => request(`/api/geocode?q=${encodeURIComponent(q)}`);
 export const stravaDisconnect = (): Promise<{ data: UserData }> => request('/api/strava/disconnect', { method: 'POST' });
+export const intervalsConnect = (apiKey: string): Promise<{ data: UserData }> => request('/api/intervals/connect', { method: 'POST', body: JSON.stringify({ apiKey }) });
+export const intervalsDisconnect = (): Promise<{ data: UserData }> => request('/api/intervals/disconnect', { method: 'POST' });

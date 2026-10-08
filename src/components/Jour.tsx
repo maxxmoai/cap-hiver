@@ -92,7 +92,7 @@ export function Jour({ pending }: { pending: number }) {
       {next && <><h2 className="sec">Prochaine échéance</h2><Bib e={next} big onOpen={() => open({ kind: 'eventView', id: next.id })} /><p className="small mute">{diffDays(next.date, today)} jours.</p></>}
 
       <h2 className="sec">Coach</h2>
-      {integrations.coach ? <Coach onToast={toast} /> : <p className="empty">Le coach IA n’est pas activé sur ce serveur (clé ANTHROPIC_API_KEY manquante).</p>}
+      {integrations.coach ? <Coach onToast={toast} /> : <p className="empty">Le coach IA n’est pas activé sur ce serveur (aucune clé GEMINI_API_KEY ou ANTHROPIC_API_KEY).</p>}
     </>
   );
 }

@@ -63,7 +63,7 @@ export interface Done {
   legs: number;
   note: string;
   tss?: number;
-  source: 'manual' | 'strava';
+  source: 'manual' | 'strava' | 'intervals';
   stravaId?: string;
 }
 

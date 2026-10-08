@@ -8,6 +8,7 @@ Organisateur d'entraînement trail → ski de fond, pensé pour un étudiant : l
 | --- | --- |
 | **Emploi du temps** | Colle le lien d'export iCalendar (ADE, Google Agenda, Outlook). Les semaines de partiels (mots-clés réglables) passent à −20 % de volume. Un jour à 7 h de cours ou plus n'a que du décrassage de 30′. |
 | **Météo et neige** | Open-Meteo (sans clé). Pluie forte, orage, verglas ou neige annoncés : proposition de remplacer la séance (home-trainer, renfo, ski, décrassage). Environ 20 cm de neige : propose de privilégier les skis. |
+| **intervals.icu (recommandé)** | Colle ta clé d'API dans Réglages : les sorties de ta montre (Garmin, Strava, fichiers) sont importées chaque jour et à l'ouverture, avec la charge d'entraînement calculée par intervals.icu. Même logique de surcharge que ci-dessous. |
 | **Strava / Garmin** | Webhook Strava : la sortie réelle est importée, rapprochée de la séance prévue. Si 60 de charge prévus deviennent 130, les 3 jours suivants sont allégés. Garmin passe par la synchro Garmin → Strava. |
 | **Physiologie** | Jambes, tête, sommeil (1–5). Jambes lourdes mais tête bonne : intervalles remplacés par du haut du corps. Tête cuite : version facile. |
 | **Nutrition** | Veille de sortie longue : « vise 60 g de glucides et 500 ml d'eau par heure », ajusté à la température. |
@@ -40,7 +41,7 @@ npm run check                  # typecheck + tests
 
 1. Pousse le dépôt sur GitHub, puis **Add New → Project** dans Vercel.
 2. Ajoute une base Postgres (Storage → Neon) : `DATABASE_URL` est injecté.
-3. Variables : `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`, `APP_URL` (voir `.env.example`). Optionnel : `ANTHROPIC_API_KEY`, Strava.
+3. Variables : `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`, `APP_URL` (voir `.env.example`). Optionnel : `GEMINI_API_KEY` (ou `ANTHROPIC_API_KEY`) pour le coach, et Strava.
 4. Le build exécute `scripts/migrate.ts` puis `next build`. La tâche quotidienne (`vercel.json`, 5 h UTC) resynchronise calendrier et météo.
 5. Crée ton compte, puis mets `SIGNUP=closed` si l'appli est privée.
 

@@ -34,6 +34,14 @@ export function App() {
     getState().then(setSt).catch((e: unknown) => { if (!(e instanceof ApiError) || e.status !== 401) toast(e instanceof Error ? e.message : 'Erreur'); }).finally(() => setLoading(false));
   }, [toast]);
 
+  // intervals.icu : une synchro silencieuse à l'ouverture, pour que le plan tienne compte de la sortie du matin.
+  const icuOnce = useRef(false);
+  useEffect(() => {
+    if (!st?.data.intervals.connected || icuOnce.current) return;
+    icuOnce.current = true;
+    syncNow().then((r) => setSt((p) => (p ? { ...p, data: r.data, today: r.today } : p))).catch(() => undefined);
+  }, [st]);
+
   // Reprend l'état quand l'onglet redevient visible : un webhook Strava a pu modifier le plan.
   useEffect(() => {
     const f = () => { if (document.visibilityState === 'visible' && st) getState().then(setSt).catch(() => undefined); };

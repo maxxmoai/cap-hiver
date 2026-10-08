@@ -15,6 +15,8 @@ export interface UserData {
   /** Identifiants Strava déjà traités, pour ignorer les doublons de webhook. */
   stravaSeen: string[];
   strava: { connected: boolean; lastSyncAt: string | null };
+  /** Clé d'API chiffrée (AES-256-GCM) : elle ne quitte jamais le serveur. */
+  intervals: { connected: boolean; keyEnc: string | null; athlete: string; lastSyncAt: string | null; lastError: string | null };
 }
 
 export interface User { id: string; email: string; name: string }

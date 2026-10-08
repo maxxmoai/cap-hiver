@@ -1,7 +1,7 @@
 import { parseAction } from '../../../server/actions.ts';
 import { mutate } from '../../../server/mutate.ts';
 import { applyUserAction, refreshAlerts, syncCalendar, todayOf } from '../../../server/service.ts';
-import { currentUser, deps, fail, getStore, json, sameOrigin } from '../../../server/runtime.ts';
+import { currentUser, deps, fail, getStore, json, publicData, sameOrigin } from '../../../server/runtime.ts';
 
 export async function POST(req: Request) {
   if (!(await sameOrigin())) return fail('Requête refusée.', 403);
@@ -19,5 +19,5 @@ export async function POST(req: Request) {
     if (a.type === 'saveCalendarUrl' || a.type === 'saveSettings') next = await refreshAlerts(next, d);
     return next;
   });
-  return json({ data, today: todayOf(data, d) });
+  return json({ data: publicData(data), today: todayOf(data, d) });
 }

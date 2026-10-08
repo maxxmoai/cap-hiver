@@ -37,7 +37,7 @@ export function SessionRow({ s, onOpen }: { s: Session; onOpen: () => void }) {
           {s.src === 'ia' && <span className="tag">Coach</span>}
           {s.src === 'weather' && <span className="tag">Météo</span>}
           {s.indoor && <span className="tag">Intérieur</span>}
-          {s.status === 'done' && <span className="pill good">Faite{s.done?.source === 'strava' ? ' · Strava' : ''}</span>}
+          {s.status === 'done' && <span className="pill good">Faite{s.done?.source === 'strava' ? ' · Strava' : s.done?.source === 'intervals' ? ' · intervals.icu' : ''}</span>}
           {off && <span className="pill mute">Annulée</span>}
         </div>
         <h3>{titleOf(s)}</h3>

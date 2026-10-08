@@ -6,6 +6,7 @@ import { RPE0 } from '../engine/constants.ts';
 import { addDays, diffDays, todayIn, weekStart } from '../engine/dates.ts';
 import { applyCoachChange, parseCoachReply } from '../lib/coach.ts';
 import { busyFromEvents, fetchIcs, parseIcs, safeIcsUrl } from '../lib/ics.ts';
+import { fetchRecent } from '../lib/intervals.ts';
 import { fetchForecast } from '../lib/openmeteo.ts';
 import { ingestActivity, removeActivity, type StravaActivity } from '../lib/strava.ts';
 import { mergeSettings, type Action } from './actions.ts';
@@ -199,10 +200,28 @@ export async function refreshAlerts(data: UserData, deps: Deps): Promise<UserDat
 }
 
 /** Tâche quotidienne : calendrier, puis alertes. Une erreur sur un volet n'empêche pas les autres. */
-export async function runDaily(data: UserData, deps: Deps): Promise<UserData> {
+export async function runDaily(data: UserData, deps: Deps, opts: { intervalsKey?: string | null } = {}): Promise<UserData> {
   let d = data;
   if (d.calendar.url) d = await syncCalendar(d, deps);
+  if (opts.intervalsKey) d = await syncIntervals(d, opts.intervalsKey, deps);
   return refreshAlerts(d, deps);
+}
+
+/** Importe les 14 derniers jours depuis intervals.icu. Rejouer une activité déjà vue ne change rien. */
+export async function syncIntervals(data: UserData, apiKey: string, deps: Deps): Promise<UserData> {
+  const today = todayOf(data, deps);
+  const nowIso = deps.now().toISOString();
+  try {
+    const acts = (await fetchRecent(apiKey, addDays(today, -14), today, deps.fetch)).sort((a, b) => (a.start_date_local < b.start_date_local ? -1 : 1));
+    let d = data;
+    for (const a of acts) {
+      if (d.stravaSeen.includes(String(a.id))) continue;
+      d = applyStravaActivity(d, a, deps).data;
+    }
+    return { ...d, intervals: { ...d.intervals, lastSyncAt: nowIso, lastError: null } };
+  } catch (e) {
+    return { ...data, intervals: { ...data.intervals, lastSyncAt: nowIso, lastError: e instanceof Error ? e.message.slice(0, 200) : 'Synchronisation impossible.' } };
+  }
 }
 
 /* ---------- Strava ---------- */
@@ -229,7 +248,7 @@ export function applyStravaActivity(data: UserData, act: StravaActivity, deps: D
   }
   const seen = [String(act.id), ...data.stravaSeen.filter((x) => x !== String(act.id))].slice(0, 200);
   return {
-    data: replan({ ...data, sessions, suggestions: mergeSuggestions(suggestions, [], today), stravaSeen: seen, strava: { connected: true, lastSyncAt: deps.now().toISOString() } }, deps),
+    data: replan({ ...data, sessions, suggestions: mergeSuggestions(suggestions, [], today), stravaSeen: seen, strava: typeof act.id === 'string' ? data.strava : { connected: true, lastSyncAt: deps.now().toISOString() } }, deps),
     summary,
   };
 }
