@@ -1,9 +1,9 @@
 import { parseAction } from '../../../server/actions.ts';
 import { mutate } from '../../../server/mutate.ts';
 import { applyUserAction, refreshAlerts, syncCalendar, todayOf } from '../../../server/service.ts';
-import { currentUser, deps, fail, getStore, json, publicData, sameOrigin } from '../../../server/runtime.ts';
+import { currentUser, deps, fail, getStore, json, publicData, sameOrigin, guard } from '../../../server/runtime.ts';
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!(await sameOrigin())) return fail('Requête refusée.', 403);
   const user = await currentUser();
   if (!user) return fail('Non connecté.', 401);
@@ -21,3 +21,5 @@ export async function POST(req: Request) {
   });
   return json({ data: publicData(data), today: todayOf(data, d) });
 }
+
+export const POST = guard(postHandler);

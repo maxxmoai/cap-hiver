@@ -16,6 +16,7 @@ export function Reglages() {
   const [places, setPlaces] = useState<Awaited<ReturnType<typeof searchPlaces>>['places']>([]);
   const [url, setUrl] = useState(data.calendar.url ?? '');
   const [icuKey, setIcuKey] = useState('');
+  const [icuId, setIcuId] = useState(data.intervals.athleteId !== '0' ? data.intervals.athleteId : '');
 
   const save = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -112,8 +113,9 @@ export function Reglages() {
         ) : (
           <>
             <p className="small mute">Sur intervals.icu : Réglages → Développeur → « Clé API ». Colle-la ici ; elle est chiffrée sur le serveur et ne revient jamais au navigateur. Si ta montre est reliée à intervals.icu, chaque sortie arrive avec sa charge d’entraînement, et les trois jours suivants sont allégés si elle était bien plus dure que prévu.</p>
+            <Field label="Identifiant d’athlète (ex. i743904)"><input value={icuId} onChange={(e) => setIcuId(e.target.value)} placeholder="i743904" autoCapitalize="off" spellCheck={false} /></Field>
             <Field label="Clé API intervals.icu"><input type="password" value={icuKey} onChange={(e) => setIcuKey(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
-            <button className="btn pri" disabled={!icuKey.trim()} onClick={() => void intervalsConnect(icuKey.trim()).then((r) => { setData(r.data); setIcuKey(''); toast('intervals.icu connecté.'); }).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Échec.'))}>Connecter</button>
+            <button className="btn pri" disabled={!icuKey.trim()} onClick={() => void intervalsConnect(icuKey.trim(), icuId.trim()).then((r) => { setData(r.data); setIcuKey(''); toast('intervals.icu connecté.'); }).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Échec.'))}>Connecter</button>
           </>
         )}
       </section>

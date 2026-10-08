@@ -56,6 +56,17 @@ export function intervalsKeyOf(d: UserData): string | null {
   try { return decrypt(d.intervals.keyEnc, e.tokenKey); } catch { return null; }
 }
 
+/** Aucune route ne doit renvoyer une page d'erreur muette : on journalise et on répond en JSON lisible. */
+export function guard<A extends unknown[]>(fn: (...a: A) => Promise<Response>): (...a: A) => Promise<Response> {
+  return async (...a: A) => {
+    try { return await fn(...a); } catch (e) {
+      console.error('[cap-hiver] erreur de route', e);
+      const msg = e instanceof Error ? e.message.replace(/postgres(ql)?:\/\/\S+/gi, '[url]').slice(0, 160) : '';
+      return NextResponse.json({ error: `Erreur du serveur${msg ? ` : ${msg}` : '.'}` }, { status: 500, headers: { 'cache-control': 'no-store' } });
+    }
+  };
+}
+
 export const json = (body: unknown, status = 200): NextResponse => NextResponse.json(body, { status, headers: { 'cache-control': 'no-store' } });
 export const fail = (message: string, status = 400): NextResponse => json({ error: message }, status);
 

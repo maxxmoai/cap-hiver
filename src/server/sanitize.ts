@@ -174,6 +174,7 @@ export function sanitizeUserData(raw: unknown, newId: IdGen, today: string): Use
     intervals: {
       connected: iv['connected'] === true && typeof iv['keyEnc'] === 'string',
       keyEnc: typeof iv['keyEnc'] === 'string' ? iv['keyEnc'].slice(0, 400) : null,
+      athleteId: typeof iv['athleteId'] === 'string' && /^(0|i?\d{3,12})$/.test(iv['athleteId']) ? iv['athleteId'] : '0',
       athlete: text(iv['athlete'], 60),
       lastSyncAt: typeof iv['lastSyncAt'] === 'string' ? iv['lastSyncAt'] : null,
       lastError: typeof iv['lastError'] === 'string' ? iv['lastError'].slice(0, 200) : null,

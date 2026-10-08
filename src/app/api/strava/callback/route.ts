@@ -3,9 +3,9 @@ import { encrypt, verifyState } from '../../../../lib/crypto.ts';
 import { exchangeCode } from '../../../../lib/strava.ts';
 import { env } from '../../../../server/env.ts';
 import { mutate } from '../../../../server/mutate.ts';
-import { currentUser, deps, getStore } from '../../../../server/runtime.ts';
+import { currentUser, deps, getStore, guard } from '../../../../server/runtime.ts';
 
-export async function GET(req: Request) {
+async function getHandler(req: Request) {
   const e = env();
   const back = (q: string) => NextResponse.redirect(`${e.appUrl}/?${q}`);
   const user = await currentUser();
@@ -24,3 +24,5 @@ export async function GET(req: Request) {
     return back('strava=ok');
   } catch { return back('strava=erreur'); }
 }
+
+export const GET = guard(getHandler);

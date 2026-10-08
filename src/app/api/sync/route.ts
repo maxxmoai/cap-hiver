@@ -1,9 +1,9 @@
 import { mutate } from '../../../server/mutate.ts';
 import { runDaily, todayOf } from '../../../server/service.ts';
-import { currentUser, deps, fail, getStore, intervalsKeyOf, json, publicData, sameOrigin } from '../../../server/runtime.ts';
+import { currentUser, deps, fail, getStore, intervalsKeyOf, json, publicData, sameOrigin, guard } from '../../../server/runtime.ts';
 
 /** Synchronisation à la demande : calendrier + météo + alertes. */
-export async function POST() {
+async function postHandler() {
   if (!(await sameOrigin())) return fail('Requête refusée.', 403);
   const user = await currentUser();
   if (!user) return fail('Non connecté.', 401);
@@ -13,3 +13,5 @@ export async function POST() {
   const data = await mutate(store, user.id, d, (cur) => runDaily(cur, d, { intervalsKey: intervalsKeyOf(cur) }));
   return json({ data: publicData(data), today: todayOf(data, d) });
 }
+
+export const POST = guard(postHandler);

@@ -1,8 +1,8 @@
 import { todayOf } from '../../../server/service.ts';
-import { currentUser, deps, fail, getStore, json, publicData } from '../../../server/runtime.ts';
+import { currentUser, deps, fail, getStore, json, publicData, guard } from '../../../server/runtime.ts';
 import { loadOrCreate } from '../../../server/mutate.ts';
 
-export async function GET() {
+async function getHandler() {
   const user = await currentUser();
   if (!user) return fail('Non connecté.', 401);
   const d = deps();
@@ -15,3 +15,5 @@ async function integrations() {
   const e = env();
   return { coach: !!e.coachProvider, strava: !!(e.stravaId && e.stravaSecret && e.stravaVerify && e.tokenKey), intervals: !!e.tokenKey };
 }
+
+export const GET = guard(getHandler);

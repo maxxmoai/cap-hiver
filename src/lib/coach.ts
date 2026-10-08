@@ -174,11 +174,20 @@ async function askAnthropic(ctx: Record<string, unknown>, userText: string, d: C
     }),
     signal: AbortSignal.timeout(55_000),
   });
-  if (!res.ok) throw new Error(`Le coach n’a pas pu répondre (${res.status}).`);
+  if (!res.ok) throw new Error(`Le coach (Anthropic) n’a pas pu répondre (${res.status})${await apiErrorDetail(res)}.`);
   const body = (await res.json()) as { content?: Array<{ type?: string; name?: string; input?: unknown }> };
   const block = body.content?.find((b) => b.type === 'tool_use' && b.name === COACH_TOOL.name);
   if (!block) throw new Error('Réponse du coach inattendue.');
   return block.input;
+}
+
+/** Message d'erreur du fournisseur, court et sans secret, pour que « erreur 400 » devienne explicable. */
+async function apiErrorDetail(res: Response): Promise<string> {
+  try {
+    const j = (await res.json()) as { error?: { message?: unknown } | string };
+    const m = typeof j.error === 'string' ? j.error : typeof j.error?.message === 'string' ? j.error.message : '';
+    return m ? ` : ${m.replace(/\s+/g, ' ').slice(0, 200)}` : '';
+  } catch { return ''; }
 }
 
 /** Même contrat via l'API Gemini : appel de fonction imposé, clé dans l'en-tête (jamais dans l'URL). */
@@ -192,11 +201,11 @@ async function askGemini(ctx: Record<string, unknown>, userText: string, d: Coac
       contents: [{ role: 'user', parts: [{ text: userPrompt(ctx, userText) }] }],
       tools: [{ functionDeclarations: [{ name: COACH_TOOL.name, description: COACH_TOOL.description, parameters: COACH_TOOL.input_schema }] }],
       toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [COACH_TOOL.name] } },
-      generationConfig: { maxOutputTokens: 2048, temperature: 0.4 },
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.4 },
     }),
     signal: AbortSignal.timeout(55_000),
   });
-  if (!res.ok) throw new Error(`Le coach n’a pas pu répondre (${res.status}).`);
+  if (!res.ok) throw new Error(`Le coach (Gemini) n’a pas pu répondre (${res.status})${await apiErrorDetail(res)}.`);
   const body = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { name?: string; args?: unknown } }> } }> };
   const call = body.candidates?.[0]?.content?.parts?.find((p) => p.functionCall?.name === COACH_TOOL.name)?.functionCall;
   if (!call) throw new Error('Réponse du coach inattendue.');

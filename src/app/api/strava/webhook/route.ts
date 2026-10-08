@@ -4,12 +4,12 @@ import { fetchActivity, needsRefresh, parseWebhookEvent, refreshTokens, verifyCh
 import { env } from '../../../../server/env.ts';
 import { mutate } from '../../../../server/mutate.ts';
 import { applyStravaActivity, applyStravaDelete } from '../../../../server/service.ts';
-import { deps, getStore } from '../../../../server/runtime.ts';
+import { deps, getStore, guard } from '../../../../server/runtime.ts';
 
 export const maxDuration = 30;
 
 /** Vérification d'abonnement demandée par Strava. */
-export async function GET(req: Request) {
+async function getHandler(req: Request) {
   const e = env();
   const q = new URL(req.url).searchParams;
   const r = e.stravaVerify ? verifyChallenge({ mode: q.get('hub.mode'), token: q.get('hub.verify_token'), challenge: q.get('hub.challenge') }, e.stravaVerify) : null;
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 }
 
 /** Réception d'une activité : on répond vite, et on ignore ce qui ne nous concerne pas. */
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   const e = env();
   const ev = parseWebhookEvent(await req.json().catch(() => null));
   if (!ev || ev.objectType !== 'activity' || !e.tokenKey || !e.stravaId || !e.stravaSecret) return NextResponse.json({ ok: true });
@@ -41,3 +41,7 @@ export async function POST(req: Request) {
   } catch { /* Strava réessaie ; on ne renvoie pas d'erreur pour éviter les boucles */ }
   return NextResponse.json({ ok: true });
 }
+
+export const GET = guard(getHandler);
+
+export const POST = guard(postHandler);

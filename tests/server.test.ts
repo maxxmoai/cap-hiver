@@ -7,7 +7,7 @@ import { sanitizeUserData } from '../src/server/sanitize.ts';
 import { syncIntervals, applyStravaActivity, applyUserAction, emptyUserData, refreshAlerts, syncCalendar, withDateRange, type Deps } from '../src/server/service.ts';
 import type { UserData } from '../src/server/types.ts';
 import { parseActivity } from '../src/lib/strava.ts';
-import { parseIntervalsActivity, validKey } from '../src/lib/intervals.ts';
+import { parseIntervalsActivity, validAthlete, validKey } from '../src/lib/intervals.ts';
 import { counter } from './helpers.ts';
 
 const NOW = new Date('2026-10-07T09:00:00Z');
@@ -178,6 +178,16 @@ describe('intervals.icu', () => {
     assert.equal(done[0]!.done?.tss, 130);
     d = await syncIntervals(d, 'abcDEF1234567890', deps);
     assert.equal(d.sessions.filter((s) => s.done?.source === 'intervals').length, 1);
+  });
+  it('utilise l’identifiant d’athlète fourni', async () => {
+    let url = '';
+    const f = (async (u: string) => { url = String(u); return new Response('[]', { status: 200 }); }) as unknown as typeof fetch;
+    const deps = mkDeps(f);
+    let d = emptyUserData(deps);
+    d = { ...d, intervals: { ...d.intervals, athleteId: 'i743904' } };
+    await syncIntervals(d, 'abcDEF1234567890', deps);
+    assert.match(url, /athlete\/i743904\/activities/);
+    assert.ok(validAthlete('i743904') && validAthlete('0') && !validAthlete('../x'));
   });
   it('une clé refusée est notée sans toucher au plan', async () => {
     const deps = mkDeps((async () => new Response('', { status: 401 })) as unknown as typeof fetch);

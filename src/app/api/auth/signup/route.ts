@@ -1,9 +1,9 @@
 import { hashPassword } from '../../../../lib/crypto.ts';
 import { env } from '../../../../server/env.ts';
 import { mutate } from '../../../../server/mutate.ts';
-import { clientIp, deps, fail, getStore, json, sameOrigin, startSession } from '../../../../server/runtime.ts';
+import { clientIp, deps, fail, getStore, json, sameOrigin, startSession, guard } from '../../../../server/runtime.ts';
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!(await sameOrigin())) return fail('Requête refusée.', 403);
   if (!env().signupOpen) return fail('Les inscriptions sont fermées.', 403);
   const store = getStore();
@@ -20,3 +20,5 @@ export async function POST(req: Request) {
   await startSession(user.id);
   return json({ user });
 }
+
+export const POST = guard(postHandler);

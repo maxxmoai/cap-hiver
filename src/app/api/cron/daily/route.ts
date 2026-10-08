@@ -2,12 +2,12 @@ import { safeEqual } from '../../../../lib/crypto.ts';
 import { env } from '../../../../server/env.ts';
 import { mutate } from '../../../../server/mutate.ts';
 import { runDaily } from '../../../../server/service.ts';
-import { deps, fail, getStore, intervalsKeyOf, json } from '../../../../server/runtime.ts';
+import { deps, fail, getStore, intervalsKeyOf, json, guard } from '../../../../server/runtime.ts';
 
 export const maxDuration = 60;
 
 /** Appelée chaque matin par Vercel Cron : calendrier, météo, alertes de chaque utilisateur. */
-export async function GET(req: Request) {
+async function getHandler(req: Request) {
   const secret = env().cronSecret;
   if (!secret || !safeEqual(req.headers.get('authorization') ?? '', `Bearer ${secret}`)) return fail('Non autorisé.', 401);
   const store = getStore();
@@ -19,3 +19,5 @@ export async function GET(req: Request) {
   }
   return json({ ok, failed });
 }
+
+export const GET = guard(getHandler);

@@ -2,12 +2,12 @@ import { buildCoachContext, askCoach, parseCoachReply } from '../../../lib/coach
 import { env } from '../../../server/env.ts';
 import { mutate } from '../../../server/mutate.ts';
 import { todayOf } from '../../../server/service.ts';
-import { currentUser, deps, fail, getStore, json, sameOrigin } from '../../../server/runtime.ts';
+import { currentUser, deps, fail, getStore, json, sameOrigin, guard } from '../../../server/runtime.ts';
 import { loadOrCreate } from '../../../server/mutate.ts';
 
 const DAILY_LIMIT = 20;
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!(await sameOrigin())) return fail('Requête refusée.', 403);
   const user = await currentUser();
   if (!user) return fail('Non connecté.', 401);
@@ -32,3 +32,5 @@ export async function POST(req: Request) {
   await mutate(store, user.id, d, (cur) => ({ ...cur, coach: { message: reply.message, at: d.now().toISOString(), usageDate: today, usageCount: (cur.coach.usageDate === today ? cur.coach.usageCount : 0) + 1 } }));
   return json({ reply });
 }
+
+export const POST = guard(postHandler);

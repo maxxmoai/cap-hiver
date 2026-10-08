@@ -212,7 +212,7 @@ export async function syncIntervals(data: UserData, apiKey: string, deps: Deps):
   const today = todayOf(data, deps);
   const nowIso = deps.now().toISOString();
   try {
-    const acts = (await fetchRecent(apiKey, addDays(today, -14), today, deps.fetch)).sort((a, b) => (a.start_date_local < b.start_date_local ? -1 : 1));
+    const acts = (await fetchRecent(apiKey, data.intervals.athleteId || '0', addDays(today, -14), today, deps.fetch)).sort((a, b) => (a.start_date_local < b.start_date_local ? -1 : 1));
     let d = data;
     for (const a of acts) {
       if (d.stravaSeen.includes(String(a.id))) continue;

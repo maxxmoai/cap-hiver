@@ -1,9 +1,9 @@
 import { hashPassword, verifyPassword } from '../../../../lib/crypto.ts';
-import { clientIp, fail, getStore, json, sameOrigin, startSession } from '../../../../server/runtime.ts';
+import { clientIp, fail, getStore, json, sameOrigin, startSession, guard } from '../../../../server/runtime.ts';
 
 let DUMMY: string | null = null;
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!(await sameOrigin())) return fail('Requête refusée.', 403);
   const store = getStore();
   const b = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -18,3 +18,5 @@ export async function POST(req: Request) {
   await startSession(u.id);
   return json({ user: { id: u.id, email: u.email, name: u.name } });
 }
+
+export const POST = guard(postHandler);

@@ -4,6 +4,9 @@ const BASE = 'https://intervals.icu/api/v1';
 
 const authHeader = (apiKey: string): string => `Basic ${Buffer.from(`API_KEY:${apiKey}`).toString('base64')}`;
 
+/** Identifiant d'athlète affiché dans l'URL d'intervals.icu (ex. i743904). « 0 » désigne le propriétaire de la clé. */
+export const validAthlete = (a: string): boolean => /^(0|i?\d{3,12})$/.test(a.trim());
+
 /** Clé d'API personnelle : Réglages → Développeur sur intervals.icu. On refuse tout ce qui n'y ressemble pas. */
 export const validKey = (k: string): boolean => /^[A-Za-z0-9]{10,64}$/.test(k.trim());
 
@@ -38,20 +41,22 @@ export function parseIntervalsActivity(json: unknown): StravaActivity | null {
 
 async function get(path: string, apiKey: string, f: typeof fetch): Promise<unknown> {
   const res = await f(`${BASE}${path}`, { headers: { authorization: authHeader(apiKey), accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
-  if (res.status === 401 || res.status === 403) throw new Error('Clé intervals.icu refusée.');
+  if (res.status === 401) throw new Error('Clé intervals.icu refusée (401). Vérifie la clé API.');
+  if (res.status === 403) throw new Error('intervals.icu refuse l’accès (403) : vérifie l’identifiant d’athlète et la clé.');
+  if (res.status === 404) throw new Error('Athlète introuvable sur intervals.icu (404) : vérifie l’identifiant (ex. i743904).');
   if (!res.ok) throw new Error(`intervals.icu a répondu ${res.status}.`);
   return res.json();
 }
 
 /** Vérifie la clé et renvoie le nom de l'athlète. */
-export async function checkKey(apiKey: string, f: typeof fetch): Promise<string> {
-  const j = (await get('/athlete/0', apiKey, f)) as Record<string, unknown> | null;
+export async function checkKey(apiKey: string, athleteId: string, f: typeof fetch): Promise<string> {
+  const j = (await get(`/athlete/${encodeURIComponent(athleteId)}`, apiKey, f)) as Record<string, unknown> | null;
   const name = j && typeof j['name'] === 'string' ? j['name'] : '';
   return name.slice(0, 60);
 }
 
-export async function fetchRecent(apiKey: string, oldest: string, newest: string, f: typeof fetch): Promise<StravaActivity[]> {
-  const j = await get(`/athlete/0/activities?oldest=${oldest}&newest=${newest}`, apiKey, f);
+export async function fetchRecent(apiKey: string, athleteId: string, oldest: string, newest: string, f: typeof fetch): Promise<StravaActivity[]> {
+  const j = await get(`/athlete/${encodeURIComponent(athleteId)}/activities?oldest=${oldest}&newest=${newest}`, apiKey, f);
   if (!Array.isArray(j)) throw new Error('Réponse intervals.icu inattendue.');
   return j.flatMap((x) => { const a = parseIntervalsActivity(x); return a ? [a] : []; });
 }
