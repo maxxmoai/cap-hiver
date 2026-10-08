@@ -191,25 +191,45 @@ async function apiErrorDetail(res: Response): Promise<string> {
 }
 
 /** Même contrat via l'API Gemini : appel de fonction imposé, clé dans l'en-tête (jamais dans l'URL). */
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** Modèles essayés dans l'ordre quand le premier est saturé. */
+const GEMINI_FALLBACKS = ['gemini-flash-lite-latest', 'gemini-2.5-flash'];
+
+/** Même contrat via l'API Gemini : appel de fonction imposé, clé dans l'en-tête (jamais dans l'URL). */
 async function askGemini(ctx: Record<string, unknown>, userText: string, d: CoachDeps): Promise<unknown> {
-  const model = encodeURIComponent(d.model.replace(/^models\//, ''));
-  const res = await d.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': d.apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: COACH_SYSTEM }] },
-      contents: [{ role: 'user', parts: [{ text: userPrompt(ctx, userText) }] }],
-      tools: [{ functionDeclarations: [{ name: COACH_TOOL.name, description: COACH_TOOL.description, parameters: COACH_TOOL.input_schema }] }],
-      toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [COACH_TOOL.name] } },
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.4 },
-    }),
-    signal: AbortSignal.timeout(55_000),
+  const models = [...new Set([d.model, ...GEMINI_FALLBACKS].map((m) => m.replace(/^models\//, '')))];
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: COACH_SYSTEM }] },
+    contents: [{ role: 'user', parts: [{ text: userPrompt(ctx, userText) }] }],
+    tools: [{ functionDeclarations: [{ name: COACH_TOOL.name, description: COACH_TOOL.description, parameters: COACH_TOOL.input_schema }] }],
+    toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [COACH_TOOL.name] } },
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.4 },
   });
-  if (!res.ok) throw new Error(`Le coach (Gemini) n’a pas pu répondre (${res.status})${await apiErrorDetail(res)}.`);
-  const body = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { name?: string; args?: unknown } }> } }> };
-  const call = body.candidates?.[0]?.content?.parts?.find((p) => p.functionCall?.name === COACH_TOOL.name)?.functionCall;
-  if (!call) throw new Error('Réponse du coach inattendue.');
-  return call.args;
+  let last = 'aucune réponse';
+  for (const [i, model] of models.entries()) {
+    // Deux essais par modèle (le second après une courte pause), puis modèle suivant.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await sleep(1500);
+      let res: Response;
+      try {
+        res = await d.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+          method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': d.apiKey }, body, signal: AbortSignal.timeout(18_000),
+        });
+      } catch { last = `${model} : délai dépassé`; continue; }
+      if (res.ok) {
+        const j = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { name?: string; args?: unknown } }> } }> };
+        const call = j.candidates?.[0]?.content?.parts?.find((p) => p.functionCall?.name === COACH_TOOL.name)?.functionCall;
+        if (call) return call.args;
+        last = `${model} : réponse vide`;
+        break;
+      }
+      last = `${model} : ${res.status}${await apiErrorDetail(res)}`;
+      if (!RETRYABLE.has(res.status) && !(res.status === 404 && i < models.length - 1)) throw new Error(`Le coach (Gemini) n’a pas pu répondre (${last}).`);
+      if (res.status === 404) break;
+    }
+  }
+  throw new Error(`Le coach (Gemini) est surchargé ou injoignable (${last}). Réessaie dans une minute.`);
 }
 
 export const askCoach = (ctx: Record<string, unknown>, userText: string, d: CoachDeps): Promise<unknown> =>

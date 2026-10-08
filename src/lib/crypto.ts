@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 
 const b64u = (b: Buffer): string => b.toString('base64url');
 const fromB64u = (s: string): Buffer => Buffer.from(s, 'base64url');
@@ -33,10 +33,14 @@ export function verifyPassword(password: string, stored: string): boolean {
 
 /* ---------- chiffrement des jetons : AES-256-GCM ---------- */
 
-function key32(base64Key: string): Buffer {
-  const k = Buffer.from(base64Key, 'base64');
-  if (k.length !== 32) throw new Error('TOKEN_ENCRYPTION_KEY doit contenir 32 octets encodés en base64.');
-  return k;
+function key32(secret: string): Buffer {
+  // Tolère les espaces, retours à la ligne et guillemets collés par erreur dans la variable d'environnement.
+  const clean = secret.trim().replace(/^["']|["']$/g, '').trim();
+  const k = Buffer.from(clean, 'base64');
+  if (k.length === 32) return k;
+  // Toute autre valeur d'au moins 16 caractères est transformée en clé de 32 octets (SHA-256).
+  if (clean.length >= 16) return createHash('sha256').update(clean, 'utf8').digest();
+  throw new Error('TOKEN_ENCRYPTION_KEY est trop courte : utilise `openssl rand -base64 32`.');
 }
 
 export function encrypt(plain: string, base64Key: string): string {

@@ -5,6 +5,7 @@ import { todayOf } from '../../../server/service.ts';
 import { currentUser, deps, fail, getStore, json, sameOrigin, guard } from '../../../server/runtime.ts';
 import { loadOrCreate } from '../../../server/mutate.ts';
 
+export const maxDuration = 60;
 const DAILY_LIMIT = 20;
 
 async function postHandler(req: Request) {

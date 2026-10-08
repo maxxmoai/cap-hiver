@@ -178,7 +178,7 @@ describe('sécurité', () => {
     const parts = c.split('.');
     parts[3] = parts[3]!.slice(0, -2) + 'AA';
     assert.throws(() => decrypt(parts.join('.'), key));
-    assert.throws(() => encrypt('x', Buffer.alloc(8).toString('base64')), /32 octets/);
+    assert.throws(() => encrypt('x', Buffer.alloc(8).toString('base64')), /trop courte/);
   });
   it('signe les sessions et refuse les jetons expirés ou falsifiés', () => {
     const t = signSession('user1', 'secret', 60, 1_000_000);
@@ -241,6 +241,28 @@ describe('coach', () => {
     await assert.rejects(askCoach(ctx, '', { fetch: bad, apiKey: 'k', model: 'm' }), /529/);
   });
 
+  it('Gemini : réessaie puis passe au modèle suivant quand le premier est saturé', async () => {
+    const ctx = buildCoachContext({ today: '2026-10-07', settings: settings(), events: [], sessions: [], form: {}, busy: {} });
+    const seen: string[] = [];
+    const f = (async (u: string) => {
+      seen.push(/models\/([^:]+):/.exec(u)![1]!);
+      if (seen.length < 3) return new Response(JSON.stringify({ error: { message: 'high demand' } }), { status: 503 });
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ functionCall: { name: COACH_TOOL.name, args: { message: 'ok', changes: [] } } }] } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const out = await askCoach(ctx, '', { fetch: f, apiKey: 'k', model: 'gemini-flash-latest', provider: 'gemini' });
+    assert.deepEqual(out, { message: 'ok', changes: [] });
+    assert.deepEqual(seen, ['gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-lite-latest']);
+    const bad = (async () => new Response(JSON.stringify({ error: { message: 'API key not valid' } }), { status: 400 })) as unknown as typeof fetch;
+    await assert.rejects(askCoach(ctx, '', { fetch: bad, apiKey: 'k', model: 'm', provider: 'gemini' }), /400.*API key not valid/);
+  });
+
+  it('une clé de chiffrement mal collée reste utilisable', () => {
+    const good = 'qC7MygqHGLwjgSVO47gDyA6Yo9K7FAZYNDBcBPDAExc=';
+    assert.equal(decrypt(encrypt('secret', `  "${good}"\n`), good), 'secret');
+    assert.equal(decrypt(encrypt('x', 'une phrase de passe assez longue'), 'une phrase de passe assez longue'), 'x');
+    assert.throws(() => encrypt('x', 'court'), /trop courte/);
+  });
+
   it('parle à Gemini avec la clé en en-tête et un appel de fonction imposé', async () => {
     const ctx = buildCoachContext({ today: '2026-10-07', settings: settings(), events: [], sessions: [], form: {}, busy: {} });
     let url = ''; let headers: Record<string, string> = {}; let sent: Record<string, any> = {};
@@ -255,7 +277,7 @@ describe('coach', () => {
     assert.equal(headers['x-goog-api-key'], 'SECRET');
     assert.equal(sent['toolConfig'].functionCallingConfig.mode, 'ANY');
     const none = (async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'bla' }] } }] }), { status: 200 })) as unknown as typeof fetch;
-    await assert.rejects(askCoach(ctx, '', { fetch: none, apiKey: 'k', model: 'm', provider: 'gemini' }), /inattendue/);
+    await assert.rejects(askCoach(ctx, '', { fetch: none, apiKey: 'k', model: 'm', provider: 'gemini' }), /surchargé ou injoignable/);
     assert.equal(pickProvider(null, true, true), 'gemini');
     assert.equal(pickProvider('anthropic', true, true), 'anthropic');
     assert.equal(pickProvider('gemini', false, true), 'anthropic');
